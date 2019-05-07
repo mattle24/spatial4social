@@ -1,2 +1,2 @@
 # spatial4social
-Spatial analysis techniques for social social in R
+Spatial analysis techniques for social science in R
