@@ -1,0 +1,72 @@
+---
+title: "segregation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{segregation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Calculating segregation in cities with tidycensus, tigris, and spatial4social
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(spatial4social)
+library(tidycensus)
+library(tigris)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+options(tigris_class = "sf")
+```
+
+```{r}
+variable_lookup <- tibble::tibble(
+  variable_name = c("white_non_hispanic", "afam_non_hispanic")
+  ,variable_code = c("B03002_003", "B03002_004")
+)
+
+places_sf <- tigris::places("CA", year = 2015)
+# limit to biggest cities by area to make this example run faster
+places_sf <- places_sf %>%
+  dplyr::top_n(5, wt = ALAND)
+
+tracts <- tidycensus::get_acs("tract", variables = variable_lookup$variable_code,
+                              year = 2015, state = "CA")
+
+tracts_sf <- tigris::tracts("CA", year = 2015)
+tracts <- tracts %>%
+  dplyr::left_join(variable_lookup, by = c("variable" = "variable_code")) %>%
+  dplyr::select(-NAME, -variable, -moe) %>%
+  tidyr::spread(key = "variable_name", value = "estimate")
+tracts_sf <- tracts_sf %>%
+  dplyr::inner_join(tracts, by = "GEOID")
+```
+
+```{r}
+x <- calculate_segregation(macro_geometry_sf = places_sf, sub_geometry_sf = tracts_sf,
+                          majority_pop = "white_non_hispanic", minority_pop = "afam_non_hispanic",
+                          method = "dissimilarity_index")
+```
+
+```{r}
+ggplot(x) +
+  geom_sf(aes(fill = dissimilarity_index)) +
+  geom_sf_label(aes(label = NAME), nudge_y = 0.5, nudge_x = 0.5) +
+  scale_x_continuous(limits = c(-123, -116)) +
+  scale_y_continuous(limits = c(32.5, 38)) +
+  coord_sf(datum = NA) +
+  labs(title = "Dissimilarity Index in California Cities", x= "", y = "") +
+  scale_fill_continuous(name = "Dissimilarity Index") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
